@@ -147,39 +147,50 @@ classdef Cloud < handle
             for k=1:obj.numberOfNodes % Loop through Nodes
                 k/obj.numberOfNodes*100
                 A=obj.Nodes(k).Voron.area;
-                for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
-                    midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
-                    normal=(obj.Nodes(k).Voron.normal(l,:))';
-                    for a=1:n % Loop over Shape Functions (Rows)
-                        cordsA=obj.Nodes(a).cordinates;
-                        for b=1:n % Loop over Shape Functions (Cols)
-                            cordsB=obj.Nodes(b).cordinates;
-                            if b>=a
-                                if norm(cordsA-midPoint)<obj.Nodes(a).a && norm(cordsB-midPoint)<obj.Nodes(b).a
-                                    va=obj.Nodes(a).sF.getValue(midPoint);
-                                    vb=obj.Nodes(b).sF.getValue(midPoint);
-                                    va=1; vb=1;
-                                    b_a1=1/A*va*(dot(normal,n1));
-                                    b_a2=1/A*va*(dot(normal,n2));
-                                    b_b1=1/A*vb*(dot(normal,n1));
-                                    b_b2=1/A*vb*(dot(normal,n2));
-                                    Ba=[b_a1,0;0,b_a2;b_a2,b_a1];
+                listPerm=obj.Nodes(k).Voron.permRatio;
+                cellCentre=obj.Nodes(k).Voron.centre;
+                cellRadius=obj.Nodes(k).Voron.radius;
+                for a=1:n % Loop over Shape Functions (Rows)
+                    cordsA=obj.Nodes(a).cordinates;
+                    if norm(cellCentre-cordsA)<=obj.Nodes(a).a+cellRadius % Then Point a may be included
+                        b_a1=0; % Initialize a's Component of the B Matrix
+                        b_a2=0; % Initialize a's Component of the B Matrix
+                        for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
+                            midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
+                            normal=(obj.Nodes(k).Voron.normal(l,:))';
+                            va=obj.Nodes(a).sF.getValue(midPoint);
+                            b_a1=b_a1+1/A*va*(dot(normal,n1));
+                            b_a2=b_a2+1/A*va*(dot(normal,n2));
+                            if sum(Q~=0)>0
+                                F(2*a-1,1)=F(2*a-1,1)+va*A*listPerm(l)*Q(1);
+                                F(2*a,1)=F(2*a,1)+va*A*listPerm(l)*Q(2);
+                            end
+                        end
+                        Ba=[b_a1,0;0,b_a2;b_a2,b_a1];
+                        for b=1:n % Loop over Shape Functions (Columns)
+                            if b>=a % Only assemble the upper half of matrix
+                                cordsB=obj.Nodes(b).cordinates;
+                                if norm(cellCentre-cordsB)<=obj.Nodes(b).a+cellRadius % Then Point a may be included
+                                    b_b1=0; % Initialize a's Component of the B Matrix
+                                    b_b2=0; % Initialize a's Component of the B Matrix
+                                    for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
+                                        midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
+                                        normal=(obj.Nodes(k).Voron.normal(l,:))';
+                                        vb=obj.Nodes(b).sF.getValue(midPoint);
+                                        b_b1=b_b1+1/A*vb*(dot(normal,n1));
+                                        b_b2=b_b2+1/A*vb*(dot(normal,n2));
+                                    end
                                     Bb=[b_b1,0;0,b_b2;b_b2,b_b1];
-                                    Kab=Ba'*C*Bb;
+                                    Kab=Ba'*C*Bb*A;
                                     K(2*a-1,2*b-1)=K(2*a-1,2*b-1)+Kab(1,1);
                                     K(2*a-1,2*b)=K(2*a-1,2*b)+Kab(1,2);
                                     K(2*a,2*b-1)=K(2*a,2*b-1)+Kab(2,1);
                                     K(2*a,2*b)=K(2*a,2*b)+Kab(2,2);
-                                else
-                                    %Pass
                                 end
                             end
                         end
-                        if sum(Q~=0)>0
-                            F(2*a-1,1)=F(2*a-1,1)+va*Q(1)*A;
-                            F(2*a,1)=F(2*a,1)+va*Q(2)*A;
-                        end
                     end
+                    
                 end
             end
             K=triu(K)+tril(K',-1);
@@ -260,14 +271,12 @@ classdef Cloud < handle
             end
         end
         
-        function test=checkPU(obj,Mesh)
+        function test=checkPU(obj)
             % Test for Partial Unity:
             test=0;
-            hw=waitbar(0/Mesh.noElements,'Checking Partial Unity at Int Points');
-            for j=1:Mesh.noElements
-                waitbar(j/Mesh.noElements,hw,'Checking Partial Unity at Int Points');
-                for g=1:Mesh.orderInt
-                    xTest=Mesh.Elements(j).getIntCord(g);
+            for j=1:obj.numberOfNodes % Loops through nodes
+                for g=1:size(obj.Nodes(j).Voron.VoroniCords,1) % Loops through Edges
+                    xTest=obj.Nodes(j).Voron.midPoint(g,:);
                     pu=0;
                     for i=1:obj.numberOfNodes
                         pu=pu+obj.Nodes(i).sF.getValue([xTest(1);xTest(2)]);
@@ -278,7 +287,6 @@ classdef Cloud < handle
                 end
                 
             end
-            close(hw)
         end
         
         function test=checkNU(obj,Mesh)

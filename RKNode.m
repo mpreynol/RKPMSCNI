@@ -52,7 +52,7 @@ classdef RKNode < handle
         
         % Set Value of Voroni
         function setVoroni(obj,VoroniCords)
-            obj.Voron=Voroni(VoroniCords);
+            obj.Voron=Voroni(VoroniCords,obj.cordinates);
         end
     end
     

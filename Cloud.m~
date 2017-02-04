@@ -145,10 +145,16 @@ classdef Cloud < handle
             K=zeros(n*2,n*2);
             F=zeros(n*2,1);
             for k=1:obj.numberOfNodes % Loop through Nodes
+                k/obj.numberOfNodes*100
                 A=obj.Nodes(k).Voron.area;
+                totalPerm=obj.Nodes(k).Voron.perm;
+                listPerm=obj.Nodes(k).Voron.permRatio;
+                for a=1:n % Loop over Shape Functions (Rows)
+                    cordsA=obj.Nodes(a).cordinates;
+                
                 for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
-                    midPoint=(obj.Nodes(k).Voron(l).midPoint)';
-                    normal=obj.Nodes(k).Voron(l).normal;
+                    midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
+                    normal=(obj.Nodes(k).Voron.normal(l,:))';
                     for a=1:n % Loop over Shape Functions (Rows)
                         cordsA=obj.Nodes(a).cordinates;
                         for b=1:n % Loop over Shape Functions (Cols)
@@ -161,9 +167,9 @@ classdef Cloud < handle
                                     b_a2=1/A*va*(dot(normal,n2));
                                     b_b1=1/A*vb*(dot(normal,n1));
                                     b_b2=1/A*vb*(dot(normal,n2));
-                                    Ba=[b_a1,0;0,NDa(2);NDa(2),b_a1];
-                                    Bb=[NDb(1),0;0,NDb(2);NDb(2),NDb(1)];
-                                    Kab=Ba'*C*Bb*Jw;
+                                    Ba=[b_a1,0;0,b_a2;b_a2,b_a1];
+                                    Bb=[b_b1,0;0,b_b2;b_b2,b_b1];
+                                    Kab=Ba'*C*Bb*A;
                                     K(2*a-1,2*b-1)=K(2*a-1,2*b-1)+Kab(1,1);
                                     K(2*a-1,2*b)=K(2*a-1,2*b)+Kab(1,2);
                                     K(2*a,2*b-1)=K(2*a,2*b-1)+Kab(2,1);
@@ -174,10 +180,9 @@ classdef Cloud < handle
                             end
                         end
                         if sum(Q~=0)>0
-                            %value=Mesh.Elements(k).StoredRKPM(1,a,l);
-                            value=RKv(a,k,l,1);
-                            F(2*a-1,1)=F(2*a-1,1)+value*Jw*Q(1);
-                            F(2*a,1)=F(2*a,1)+value*Jw*Q(2);
+                            va=obj.Nodes(a).sF.getValue(midPoint);
+                            F(2*a-1,1)=F(2*a-1,1)+va*A*listPerm(l)*Q(1);
+                            F(2*a,1)=F(2*a,1)+va*A*listPerm(l)*Q(2);
                         end
                     end
                 end
@@ -260,14 +265,12 @@ classdef Cloud < handle
             end
         end
         
-        function test=checkPU(obj,Mesh)
+        function test=checkPU(obj)
             % Test for Partial Unity:
             test=0;
-            hw=waitbar(0/Mesh.noElements,'Checking Partial Unity at Int Points');
-            for j=1:Mesh.noElements
-                waitbar(j/Mesh.noElements,hw,'Checking Partial Unity at Int Points');
-                for g=1:Mesh.orderInt
-                    xTest=Mesh.Elements(j).getIntCord(g);
+            for j=1:obj.numberOfNodes % Loops through nodes
+                for g=1:size(obj.Nodes(j).Voron.VoroniCords,1) % Loops through Edges
+                    xTest=obj.Nodes(j).Voron.midPoint(g,:);
                     pu=0;
                     for i=1:obj.numberOfNodes
                         pu=pu+obj.Nodes(i).sF.getValue([xTest(1);xTest(2)]);
@@ -278,7 +281,6 @@ classdef Cloud < handle
                 end
                 
             end
-            close(hw)
         end
         
         function test=checkNU(obj,Mesh)
