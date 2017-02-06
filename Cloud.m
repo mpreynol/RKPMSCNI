@@ -99,6 +99,25 @@ classdef Cloud < handle
             end
         end
         
+        function plotVoroniDeformed(obj,scale)
+            %Method Plots a Voroni Diagram in deformed condition
+            % Scale is the Scale For Plotting the Normal
+            for i=1:obj.numberOfNodes
+                localNode=obj.Nodes(i);
+                Points=localNode.Voron.VoroniCords;
+                for j=1:size(localNode.Voron.normal,1)
+                    disp=obj.returnInterpolatedU(localNode.Voron.VoroniCords(j,:)');
+                    Points(j,:)=Points(j,:)+scale*disp';
+                end  
+                Points=[Points;Points(1,:)];
+                for j=1:size(Points,1)-1
+                    plot([Points(j,1) Points(j+1,1)], [Points(j,2) Points(j+1,2)],'-o');
+                    hold on
+                end
+            end
+        end
+        
+        
         function [ufull] = reAssembleUnknowns(obj,ureduced,BE)
             % Method reassembles a full 'u' vector for a reduced oned
             L=BE==-inf;
@@ -140,46 +159,23 @@ classdef Cloud < handle
         end
         
         function [K,F]=integrateDomain(obj,C,Q)
-            n1=[1;0]; n2=[0;1];
-            n=obj.numberOfNodes; 
+            n=obj.numberOfNodes;
             K=zeros(n*2,n*2);
             F=zeros(n*2,1);
-            for k=1:obj.numberOfNodes % Loop through Nodes
-                k/obj.numberOfNodes*100
+            for k=1:n % Loop through Nodes
+                obj.Nodes(k).CellDeriv.setData(Q);
+                k/n*100
                 A=obj.Nodes(k).Voron.area;
-                listPerm=obj.Nodes(k).Voron.permRatio;
-                cellCentre=obj.Nodes(k).Voron.centre;
-                cellRadius=obj.Nodes(k).Voron.radius;
                 for a=1:n % Loop over Shape Functions (Rows)
-                    cordsA=obj.Nodes(a).cordinates;
-                    if norm(cellCentre-cordsA)<=obj.Nodes(a).a+cellRadius % Then Point a may be included
-                        b_a1=0; % Initialize a's Component of the B Matrix
-                        b_a2=0; % Initialize a's Component of the B Matrix
-                        for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
-                            midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
-                            normal=(obj.Nodes(k).Voron.normal(l,:))';
-                            va=obj.Nodes(a).sF.getValue(midPoint);
-                            b_a1=b_a1+1/A*va*(dot(normal,n1));
-                            b_a2=b_a2+1/A*va*(dot(normal,n2));
-                            if sum(Q~=0)>0
-                                F(2*a-1,1)=F(2*a-1,1)+va*A*listPerm(l)*Q(1);
-                                F(2*a,1)=F(2*a,1)+va*A*listPerm(l)*Q(2);
-                            end
-                        end
+                    if obj.Nodes(k).CellDeriv.B(a,1)~=0 % 
+                        b_a1=obj.Nodes(k).CellDeriv.B(a,1); % Get a's Component of the B Matrix
+                        b_a2=obj.Nodes(k).CellDeriv.B(a,2); % Get a's Component of the B Matrix
                         Ba=[b_a1,0;0,b_a2;b_a2,b_a1];
                         for b=1:n % Loop over Shape Functions (Columns)
                             if b>=a % Only assemble the upper half of matrix
-                                cordsB=obj.Nodes(b).cordinates;
-                                if norm(cellCentre-cordsB)<=obj.Nodes(b).a+cellRadius % Then Point a may be included
-                                    b_b1=0; % Initialize a's Component of the B Matrix
-                                    b_b2=0; % Initialize a's Component of the B Matrix
-                                    for l=1:obj.Nodes(k).Voron.numberOfNodes % Loop through edges
-                                        midPoint=(obj.Nodes(k).Voron.midPoint(l,:))';
-                                        normal=(obj.Nodes(k).Voron.normal(l,:))';
-                                        vb=obj.Nodes(b).sF.getValue(midPoint);
-                                        b_b1=b_b1+1/A*vb*(dot(normal,n1));
-                                        b_b2=b_b2+1/A*vb*(dot(normal,n2));
-                                    end
+                                if obj.Nodes(k).CellDeriv.B(b,1)~=0 % 
+                                    b_b1=obj.Nodes(k).CellDeriv.B(b,1); % Get b's Component of the B Matrix
+                                    b_b2=obj.Nodes(k).CellDeriv.B(b,2); % Get b's Component of the B Matrix
                                     Bb=[b_b1,0;0,b_b2;b_b2,b_b1];
                                     Kab=Ba'*C*Bb*A;
                                     K(2*a-1,2*b-1)=K(2*a-1,2*b-1)+Kab(1,1);
@@ -190,8 +186,8 @@ classdef Cloud < handle
                             end
                         end
                     end
-                    
                 end
+                F=obj.Nodes(k).CellDeriv.F+F;
             end
             K=triu(K)+tril(K',-1);
         end
@@ -255,6 +251,71 @@ classdef Cloud < handle
                             for w=1:obj.numberOfNodes
                                 if norm(Cords-obj.Nodes(w).cordinates)<=obj.Nodes(w).a
                                     F(2*w-1:2*w)=F(2*w-1:2*w)+obj.Nodes(w).sF.getValue(Cords)*hInt*js*G1(i,2);
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            close(hw);
+        end
+        function F=integrateExactBoundary(obj,Mesh,BN,exactTraction)
+            F=zeros(2*obj.numberOfNodes,1);
+            hw=waitbar(0/Mesh.noElements,'Computing Boundary Integration');
+            for j=1:Mesh.noElements
+                h=BN(Mesh.Elements(j).dof);
+                waitbar(j/Mesh.noElements,hw,'Computing Boundary Integration')
+                if sum((sum(h~=0))) % Then we have tractions on the element
+                    nInt=Mesh.Elements(j).orderInt;
+                    G1=Mesh.Elements(j).G1;
+                    if (h(1)~=0 && h(3)~=0) || (h(2)~=0 && h(4)~=0)
+                        % Surface 1: eta=-1
+                        for i=1:nInt % perform Guass Integration [-1,1] over domain
+                            Mesh.Elements(j).Shape.setAll(G1(i,1),-1);
+                            Cords=[Mesh.Elements(j).Shape.X;Mesh.Elements(j).Shape.Y];
+                            js=sqrt((Mesh.Elements(j).Shape.Xxi)^2+(Mesh.Elements(j).Shape.Yxi)^2);
+                            for w=1:obj.numberOfNodes
+                                if norm(Cords-obj.Nodes(w).cordinates)<=obj.Nodes(w).a
+                                    F(2*w-1:2*w)=F(2*w-1:2*w)+obj.Nodes(w).sF.getValue(Cords)*exactTraction(Cords(1))*js*G1(i,2);
+                                end
+                            end
+                        end
+                    end
+                    if (h(3)~=0 && h(5)~=0) || (h(4)~=0 && h(6)~=0)
+                        % Surface 2: xi=1
+                        for i=1:nInt % perform Guass Integration [-1,1] over domain
+                            Mesh.Elements(j).Shape.setAll(1,G1(i,1));
+                            Cords=[Mesh.Elements(j).Shape.X;Mesh.Elements(j).Shape.Y];
+                            js=sqrt((Mesh.Elements(j).Shape.Xeta)^2+(Mesh.Elements(j).Shape.Yeta)^2);
+                            for w=1:obj.numberOfNodes
+                                if norm(Cords-obj.Nodes(w).cordinates)<=obj.Nodes(w).a
+                                    F(2*w-1:2*w)=F(2*w-1:2*w)+obj.Nodes(w).sF.getValue(Cords)*exactTraction(Cords(2))*js*G1(i,2);
+                                end
+                            end
+                        end
+                    end
+                    if (h(5)~=0 && h(7)~=0) || (h(6)~=0 && h(8)~=0)
+                        % Surface 3: eta=1
+                        for i=1:nInt % perform Guass Integration [-1,1] over domain
+                            Mesh.Elements(j).Shape.setAll(G1(i,1),1);
+                            Cords=[Mesh.Elements(j).Shape.X;Mesh.Elements(j).Shape.Y];
+                            js=sqrt((Mesh.Elements(j).Shape.Xxi)^2+(Mesh.Elements(j).Shape.Yxi)^2);
+                            for w=1:obj.numberOfNodes
+                                if norm(Cords-obj.Nodes(w).cordinates)<=obj.Nodes(w).a
+                                    F(2*w-1:2*w)=F(2*w-1:2*w)+obj.Nodes(w).sF.getValue(Cords)*exactTraction(Cords(1))*js*G1(i,2);
+                                end
+                            end
+                        end
+                    end
+                    if (h(1)~=0 && h(7)~=0) || (h(2)~=0 && h(8)~=0)
+                        % Surface 4: xi=-1
+                        for i=1:nInt % perform Guass Integration [-1,1] over domain
+                            Mesh.Elements(j).Shape.setAll(-1,G1(i,1));
+                            Cords=[Mesh.Elements(j).Shape.X;Mesh.Elements(j).Shape.Y];
+                            js=sqrt((Mesh.Elements(j).Shape.Xeta)^2+(Mesh.Elements(j).Shape.Yeta)^2);
+                            for w=1:obj.numberOfNodes
+                                if norm(Cords-obj.Nodes(w).cordinates)<=obj.Nodes(w).a
+                                    F(2*w-1:2*w)=F(2*w-1:2*w)+obj.Nodes(w).sF.getValue(Cords)*exactTraction(Cords(2))*js*G1(i,2);
                                 end
                             end
                         end

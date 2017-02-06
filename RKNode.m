@@ -13,6 +13,7 @@ classdef RKNode < handle
         Cloud; % Cloud Data Handle
         u; % Solutions *** Lack of Kronecker Means this isn't the PDE Solution Yet
         Voron; % Object containing the voroni Diagram
+        CellDeriv; % Data Structure containing the Cata
     end
     
     methods
@@ -32,6 +33,9 @@ classdef RKNode < handle
             obj.setWeightFunction()
             obj.setShapeFunction()
             obj.setVoroni(VoroniCords)
+            
+            % Define Derivative Data Structure
+            obj.CellDeriv=CellDeriv(obj.Cloud,obj.Voron);
             
             
         end

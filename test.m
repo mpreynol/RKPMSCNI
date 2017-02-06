@@ -4,20 +4,20 @@
 Mesh=QuadMesh(NN,NEL,1);
 
 % Set up Natural Boundary:
-b2=[20-eps,20+eps,-eps,1+eps,[0,1]];
+b2=[1-eps,1+eps,-eps,1+eps,[0,1]];
 BN=Boundary(NN,b2); BN(BN==-Inf)=0;
 
 %% Plot Mesh:
 MeshPlot.plotOriginal(Mesh);
 
 %% Generate Uniform Point Cloud:
-[NNp] = GridRectangle(1,1,2,2);
+[NNp] = GridRectangle(1,1,4,4);
 %Set up Essential Boundary:
 b1=[-eps,eps,0.5-eps,0.5+eps,[0,0]];
 b2=[-eps,eps,0-eps,0+eps,[0,-Inf]];
 b3=[-eps,eps,1-eps,1+eps,[0,-Inf]];
-BE=Boundary(NNp,b1,b2,b3);
 [Verts,Cells,XY]=VoronoiLimit(NNp(:,2),NNp(:,3),[0,0;1,0;1,1;0,1]); % Create Bounded Voroni Diagram
+BE=Boundary([(1:size(XY,1))',XY,reshape((1:size(XY,1)*2),2,[])'],b1,b2,b3);
 xNodes=XY(:,1);
 yNodes=XY(:,2);
 Nodes=[(1:length(xNodes))',xNodes,yNodes,reshape(BE,2,[])'];
@@ -48,11 +48,11 @@ PointCloud.checkPU()
 %PointCloud.checkLinearConsistency(Mesh)
 
 %% Build Arrays:
-C=Constit(1,0,'Plane Stress').C;
-Q=[1;0];
+C=Constit(1E4,0,'Plane Stress').C;
+Q=[0;0];
 [K,Fb]=PointCloud.integrateDomain(C,Q); % Build Arrays from Voroni
-%Fh=PointCloud.integrateExactBoundary(Mesh,BN,@parabolicStress); sum(Fh);
-F=Fb; sum(F)
+Fh=PointCloud.integrateExactBoundary(Mesh,BN,@parabolicStress);
+F=Fb+Fh; sum(F)
 %% Solve System:
 L=BE==-inf; % Indexes of unknown equations
 Kr=K(L,L); Br=BE(~L); fr=F(L); KRHS=K(L,~L); RHS=fr-KRHS*Br;
@@ -63,7 +63,7 @@ PointCloud.parseSolution(u);
 
 %% Plot The Solution:
 PointCloud.plotCloud();
-PointCloud.plotCloudU(5);
+PointCloud.plotCloudU(1);
 
 % %% Test Points
 % xs=0:0.1:1;
@@ -75,4 +75,7 @@ PointCloud.plotCloudU(5);
 % 
 
 %%
-PointCloud.returnInterpolatedU([20;0])
+PointCloud.returnInterpolatedU([1;0])
+
+%%
+PointCloud.plotVoroniDeformed(1)

@@ -13,6 +13,7 @@ classdef Voroni < handle
         perm; % perimeter of the voroni Cell (total)
         permRatio; % Ratio of perimeter to total perimeter for each side
         radius; % Returns the Maximum radius of the Voroni Cell
+        lengths; % Length of Each side
     end
     
     methods 
@@ -68,10 +69,12 @@ classdef Voroni < handle
             % Method determines the fraction of perimeter that each edge
             % belongs to
            obj.permRatio=zeros(obj.numberOfNodes,1);
+           obj.lengths=zeros(obj.numberOfNodes,1);
            Points=obj.VoroniCords;
            Points=[Points;Points(1,:)]; 
            for i=1:length(obj.permRatio)
-              obj.permRatio(i)=norm(Points(i,:)-Points(i+1,:))/obj.perm;
+              obj.lengths(i)=norm(Points(i,:)-Points(i+1,:));
+              obj.permRatio(i)=obj.lengths(i)/obj.perm;
            end
         end
         
