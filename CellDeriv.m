@@ -24,7 +24,6 @@ classdef CellDeriv < handle
                 listPerm=obj.Voron.permRatio;
                 cellCentre=obj.Voron.centre;
                 cellRadius=obj.Voron.radius;
-                n1=[1;0]; n2=[0;1];
                 for a=1:obj.n % Loop over Shape Functions (Rows)
                     cordsA=obj.Cloud.Nodes(a).cordinates;
                     if norm(cellCentre-cordsA)<=obj.Cloud.Nodes(a).a+cellRadius % Then Point a may be included
@@ -34,8 +33,8 @@ classdef CellDeriv < handle
                             midPoint=(obj.Voron.midPoint(l,:))';
                             normal=(obj.Voron.normal(l,:))';
                             va=obj.Cloud.Nodes(a).sF.getValue(midPoint);
-                            b_a1=b_a1+1/A*va*(dot(normal,n1))*obj.Voron.lengths(l);
-                            b_a2=b_a2+1/A*va*(dot(normal,n2))*obj.Voron.lengths(l);
+                            b_a1=b_a1+1/(A)*va*normal(1)*obj.Voron.lengths(l);
+                            b_a2=b_a2+1/(A)*va*normal(2)*obj.Voron.lengths(l);
                             if sum(Q~=0)>0
                                 obj.F(2*a-1,1)=obj.F(2*a-1,1)+va*A*listPerm(l)*Q(1);
                                 obj.F(2*a,1)=obj.F(2*a,1)+va*A*listPerm(l)*Q(2);

@@ -71,7 +71,11 @@ classdef Cloud < handle
         function plotCloud(obj)
             for i=1:obj.numberOfNodes
                 refresh
-                scatter(obj.nodalData(i,2),obj.nodalData(i,3),'ko','filled')
+                if obj.nodalData(i,5)==0
+                    scatter(obj.nodalData(i,2),obj.nodalData(i,3),'ro','filled')   
+                else
+                    scatter(obj.nodalData(i,2),obj.nodalData(i,3),'ko','filled')
+                end
                 hold on
             end
         end
@@ -342,8 +346,9 @@ classdef Cloud < handle
                     for i=1:obj.numberOfNodes
                         pu=pu+obj.Nodes(i).sF.getValue([xTest(1);xTest(2)]);
                     end
-                    if abs(pu-1)>test
-                        test=abs(pu-1);
+                        pu=abs(pu-1);
+                    if pu>test
+                        test=pu;
                     end
                 end
                 

@@ -83,7 +83,10 @@ classdef RKShape < handle
                 end
             end
             obj.M=Mi;
-            if sum(isnan(obj.M))>0
+            if sum(isnan(obj.M))>0 
+                obj.M=zeros(obj.order*2+1);
+                obj.Minv=obj.M;
+            elseif abs(cond(obj.M))>=1/(eps) % If you are close to a singularity
                 obj.M=zeros(obj.order*2+1);
                 obj.Minv=obj.M;
             else
@@ -94,7 +97,7 @@ classdef RKShape < handle
         
         % Define Value
         function v=getValue(obj,x,wAQ,nodeNo)
-            if (prod(x==obj.cordinates) && obj.weight.singular)
+            if (prod(abs(x-obj.cordinates)<1E12*eps) && obj.weight.singular)
                 v=1;
             else
                 if nargin>2

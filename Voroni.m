@@ -39,7 +39,7 @@ classdef Voroni < handle
             for j=1:size(Points,1)-1
                 dx=Points(j+1,1)-Points(j,1);
                 dy=Points(j+1,2)-Points(j,2);
-                obj.midPoint(j,:)=[dx/2+Points(j,1),dy/2+Points(j,2)];
+                obj.midPoint(j,:)=[dx*0.5+Points(j,1),dy*0.5+Points(j,2)];
                 r=sqrt(dx^2+dy^2);
                 obj.normalPoint(j,:)=obj.midPoint(j,:)+[dy/r, -dx/r];
                 obj.normal(j,:)=[dy/r, -dx/r];
